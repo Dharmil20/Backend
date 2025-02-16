@@ -1,11 +1,10 @@
-import { JWT_SECRET } from "../config/env";
-import User from "../models/user.model";
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const { default: mongoose } = require("mongoose");
-const { z } = require("zod");
+import { JWT_SECRET } from "../config/env.js";
+import User from "../models/user.model.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { mongoose } from "mongoose";
+import { z } from "zod";
 // const cookieParser = require("cookie-parser");
-require("dotenv").config();
 
 export const signUp = async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -27,6 +26,7 @@ export const signUp = async (req, res, next) => {
     const parsedData = requiredBody.safeParse(req.body);
     if (!parsedData.success) {
       return res.status(400).json({
+        success: false,
         message: "Incorrect Format",
         error: parsedData.error.errors,
       });
@@ -38,21 +38,13 @@ export const signUp = async (req, res, next) => {
     if (existingUser) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(409).json({ message: "User already exists" });
+      return res.status(409).json({
+        success: false,
+        message: "User already exists",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    await User.create(
-      [
-        {
-          name,
-          email,
-          password: hashedPassword,
-        },
-      ],
-      { session }
-    );
 
     const newUser = await User.create(
       [
@@ -65,59 +57,75 @@ export const signUp = async (req, res, next) => {
       { session }
     );
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: newUser._id, email: newUser.email },
       JWT_SECRET
     );
 
-    // Commit the transaction
     await session.commitTransaction();
     session.endSession();
 
-    // Send success response
     res.status(201).json({
+      success: true,
       message: "User signed up successfully",
-      token: token,
+      token,
     });
   } catch (error) {
     // Abort the transaction in case of an error
     await session.abortTransaction();
     session.endSession();
-    next(error); // Pass the error to the error-handling middleware
+
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists",
+        error: error.message,
+      });
+    }
+    // Pass other errors to the error-handling middleware
+    next(error);
   }
 };
 
-export const signIn = async (req, res) => {
-  const email = req.body.email;
-  const password = req.body.password;
+export const signIn = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
-  const user = User.findOne({ email: email });
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-  if (!user) {
-    res.json({
-      message: "User not Signed Up",
+    const passwordMatched = await bcrypt.compare(password, user.password);
+    if (!passwordMatched) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, email: user.email }, // Payload
+      JWT_SECRET
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Signed in successfully",
+      token,
+      user,
     });
-  }
-
-  const passwordMatched = await bcrypt.compare(user.password, password);
-
-  if (!passwordMatched) {
-    res.json({
-      message: "Invalid Credentials",
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
     });
+    next(error);
   }
-
-  const token = jwt.sign(
-    {
-      userId: user._id.toString(),
-    },
-    JWT_SECRET
-  );
-
-  res.json({
-    message: "Logged in Successfully",
-    token: token,
-  });
 };
-export const signOut = async (req, res) => {};
+export const signOut = async (req, res, next) => {};
