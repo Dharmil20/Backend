@@ -27,6 +27,6 @@ subscriptionRouter.get("/user/:id", authorize, getUserSubscriptions);
 
 subscriptionRouter.put("/:id/cancel", authorize, cancelSubscription);
 
-subscriptionRouter.get("/", getUpcomingRenewals);
+subscriptionRouter.get("/", authorize, getUpcomingRenewals);
 
 export default subscriptionRouter;
