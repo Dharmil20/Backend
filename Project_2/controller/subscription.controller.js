@@ -36,11 +36,117 @@ export const getUserSubscriptions = async (req, res, next) => {
   }
 };
 
+export const getSubscription = async (req, res, next) => {
+  try {
+    const subscription = await Subscriptions.findById(req.params.id);
+
+    if (!subscription) {
+      const error = new Error("No Subscription Added");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({ success: true, data: subscription });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getSubscriptions = async (req, res, next) => {
   try {
-    const subscriptions = Subscriptions.find();
+    const subscriptions = await Subscriptions.find();
 
     res.status(200).json({ success: true, data: subscriptions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateSubscription = async (req, res, next) => {
+  try {
+    const updatedSubscription = await Subscriptions.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedSubscription) {
+      const error = new Error("No Subscription found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({
+      message: "Subscription updated successfully",
+      data: updatedSubscription,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteSubscription = async (req, res, next) => {
+  try {
+    const subscription = await Subscriptions.findByIdAndDelete(req.params.id);
+    if (!subscription) {
+      return res.status(404).json({ message: "Subscription not found" });
+    }
+
+    res.json({ message: "Subscription deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const cancelSubscription = async (req, res, next) => {
+  try {
+    const subscription = await Subscriptions.findById(req.params.id);
+
+    if (!subscription) {
+      const error = new Error("Subscription not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const updatedSubscription = await Subscriptions.findByIdAndUpdate(
+      req.params.id,
+      { status: "cancelled", endDate: subscription.endDate },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    res.status(200).json({
+      message: "Subscription cancelled successfully",
+      data: updatedSubscription,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUpcomingRenewals = async (req, res, next) => {
+  try {
+    const upcomingRenewals = await Subscriptions.find({
+      status: "active", // Only active subscriptions
+    });
+
+    if (upcomingRenewals.length === 0) {
+      // Check for empty array
+      const error = new Error("No active subscriptions found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({
+      message: "Upcoming subscription renewals",
+      count: upcomingRenewals.length,
+      data: upcomingRenewals,
+    });
   } catch (error) {
     next(error);
   }

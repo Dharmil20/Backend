@@ -31,6 +31,7 @@ export const updateUser = async (req, res, next) => {
     if (req.body.email) {
       res.status(400).json({ message: "Email cannot be updated" });
     }
+    
     if (req.body.password) {
       res.status(400).json({ message: "Password cannot be updated here" });
     }
